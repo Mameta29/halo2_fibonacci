@@ -13,43 +13,55 @@
 
 */
 
+// Halo2プルーフシステムとその他必要なクレートからの要素をインポート
 use halo2_proofs::arithmetic::Field;
 use halo2_proofs::circuit::{AssignedCell, Layouter, Value};
 use halo2_proofs::plonk::*;
 use halo2_proofs::poly::Rotation;
 
+// Config構造体を定義。これは、回路の構成を保持します。
 #[derive(Clone, Debug, Copy)]
 struct Config {
-    elem_1: Column<Advice>,
-    elem_2: Column<Advice>,
-    elem_3: Column<Advice>,
-    q_fib: Selector,
-    instance: Column<Instance>,
+    elem_1: Column<Advice>,     // 最初のフィボナッチ数を格納するadvice column
+    elem_2: Column<Advice>,     // 2番目のフィボナッチ数を格納するadvice column
+    elem_3: Column<Advice>,     // 計算される数を格納するadvice column
+    q_fib: Selector,            // 計算の適用を制御するselector
+    instance: Column<Instance>, // public inputを格納するinstance column
 }
 
 impl Config {
+    // Configのconfigureメソッドを定義。これは、回路の設定を行う
     fn configure<F: Field>(cs: &mut ConstraintSystem<F>) -> Self {
+        // 可変のConstraintSystem参照を引数として受け取る
+        // advice columnを作成し、それぞれに等価性の制約を有効にする
         let elem_1 = cs.advice_column();
         cs.enable_equality(elem_1);
         let elem_2 = cs.advice_column();
         cs.enable_equality(elem_2);
         let elem_3 = cs.advice_column();
-
-        let instance = cs.instance_column();
         cs.enable_equality(elem_3);
+
+        // instance columnを作成し、等価性の制約を有効にする
+        let instance = cs.instance_column();
         cs.enable_equality(instance);
 
+        // 計算の適用を制御するselectorを作成
         let q_fib = cs.selector();
 
+        // フィボナッチ数列の計算を表すゲート（制約）を作成
         cs.create_gate("fibonacci", |virtual_cells| {
+            // セレクタと各advice columnの現在の値を問い合わせる
             let q_fib = virtual_cells.query_selector(q_fib);
             let elem_1 = virtual_cells.query_advice(elem_1, Rotation::cur());
             let elem_2 = virtual_cells.query_advice(elem_2, Rotation::cur());
             let elem_3 = virtual_cells.query_advice(elem_3, Rotation::cur());
 
+            // フィボナッチ数列の特定の性質を検証する制約を定義します。
+            // elem_1 + elem_2 - elem_3 が0となるようにする　-> elem_3 = elem_1 + elem_2 を保証する
             vec![q_fib * (elem_1 + elem_2 - elem_3)]
         });
 
+        // Config構造体のインスタンスを返す
         Self {
             elem_1,
             elem_2,
@@ -202,7 +214,7 @@ mod tests {
                 config.init(layouter.namespace(|| "init"), self.elem_1, self.elem_2)?;
 
             // 1 + 2 = 3
-            for _i in 3..11 {
+            for _i in 3..10 {
                 let (_, new_elem_3) =
                     config.assign(layouter.namespace(|| "next row"), &elem_2, &elem_3)?;
 
